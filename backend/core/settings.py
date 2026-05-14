@@ -151,34 +151,23 @@ LOGGING = {
     },
 }
 
-
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND":
             "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [(
-                os.getenv(
-                    'REDIS_HOST',
-                    '127.0.0.1'
-                ),
-                int(
-                    os.getenv(
-                        'REDIS_PORT',
-                        6379
-                    )
-                )
-            )],
-            "capacity": 300,
-            "expiry": 60,
+            "hosts":
+                [os.getenv("REDIS_URL")],
         },
     },
 }
 
 # Log Redis configuration on startup
-redis_host = os.getenv('REDIS_HOST', '127.0.0.1')
-redis_port = os.getenv('REDIS_PORT', 6379)
-logger.info(f"Redis Channel Layer configured: {redis_host}:{redis_port}")
+redis_url = os.getenv("REDIS_URL")
+if redis_url:
+    logger.info(f"Redis Channel Layer configured: {redis_url}")
+else:
+    logger.warning("Redis URL not found in environment variables")
 
 # Add Redis caching for online users and other ephemeral data
 CACHES = {
@@ -187,7 +176,7 @@ CACHES = {
             "django_redis.cache.RedisCache",
 
         "LOCATION":
-            f"redis://{os.getenv('REDIS_HOST', '127.0.0.1')}:{os.getenv('REDIS_PORT', '6379')}/1",
+            os.getenv("REDIS_URL"),
 
         "OPTIONS": {
             "CLIENT_CLASS":
