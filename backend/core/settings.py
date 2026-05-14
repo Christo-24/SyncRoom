@@ -4,6 +4,7 @@ from datetime import timedelta
 import os
 import logging
 from dotenv import load_dotenv
+import dj_database_url
 
 load_dotenv()
 
@@ -80,21 +81,7 @@ ASGI_APPLICATION = 'core.asgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'fun_chat_db'),
-        'USER': os.getenv('DB_USER', 'fun_chat_user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'change-password-in-production'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
-        'ATOMIC_REQUESTS': False,
-        'CONN_MAX_AGE': 0,  # Close connection immediately after each request (dev mode)
-        'DISABLE_SERVER_SIDE_CURSORS': True,
-        'OPTIONS': {
-            'connect_timeout': 2,
-            'keepalives': 0,  # Disable keepalives for dev to avoid stale connections
-        }
-    }
+    'default': dj_database_url.parse(os.getenv("DATABASE_URL"))
 }
 
 
