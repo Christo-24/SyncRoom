@@ -1,0 +1,1 @@
+ROOMS_GROUP = "rooms_group"
