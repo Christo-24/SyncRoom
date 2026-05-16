@@ -44,6 +44,10 @@ export function ChatProvider({ children }) {
 
   const { token, user, loading: authLoading } = useAuth();
 
+  const getWebSocketToken = useCallback(() => {
+    return token || localStorage.getItem("token");
+  }, [token]);
+
   const [rooms, setRooms] = useState([]);
 
   const [currentRoom, setCurrentRoom] =
@@ -519,16 +523,20 @@ export function ChatProvider({ children }) {
   useEffect(() => {
 
     // only connect notifications socket when auth is initialized and user is available
-    if (!token || authLoading || !user) {
+    const wsToken = getWebSocketToken();
+
+    if (!wsToken || authLoading || !user) {
       socketService.disconnectNotifications();
       return;
     }
 
-    const url = buildNotificationWebSocketUrl({ token });
+    const url = buildNotificationWebSocketUrl({ token: wsToken });
 
     if (!url) {
       return;
     }
+
+    console.log("[WS:notifications] connect", url);
 
     socketService.connectNotifications({
       url,
@@ -541,15 +549,16 @@ export function ChatProvider({ children }) {
       socketService.disconnectNotifications();
     };
 
-  }, [token, authLoading, user, handleNotificationMessage]);
+  }, [getWebSocketToken, authLoading, user, handleNotificationMessage]);
 
   const connectSocket = useCallback(
     (roomName) => {
 
       const normalizedRoomName =
         roomName?.trim();
+      const wsToken = getWebSocketToken();
 
-      if (!token || !normalizedRoomName) {
+      if (!wsToken || !normalizedRoomName) {
 
         socketService.disconnect();
 
@@ -564,7 +573,7 @@ export function ChatProvider({ children }) {
 
       const url = buildChatWebSocketUrl({
         roomName: normalizedRoomName,
-        token,
+        token: wsToken,
       });
 
       if (!url) {
@@ -581,9 +590,11 @@ export function ChatProvider({ children }) {
         CONNECTION_STATES.CONNECTING
       );
 
+      console.log("[WS:room] connect", url);
+
       setSocketUrl(url);
     },
-    [socketUrl, token]
+    [getWebSocketToken, socketUrl]
   );
 
   const disconnectSocket =
