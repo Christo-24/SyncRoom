@@ -82,6 +82,7 @@ App URLs:
 - Frontend: http://localhost:3000
 - API: http://localhost:3000/api
 - WebSocket: ws://localhost:3000/ws/chat/{room}/?token={token}
+ - Deployed: https://syncroom-eight.vercel.app
 
 ## Local development
 
@@ -119,10 +120,11 @@ Minimum values used by Docker setup:
 ```env
 DEBUG=False
 SECRET_KEY=change-this-in-production
-ALLOWED_HOSTS=backend,localhost,127.0.0.1,funchat-backend,*.localhost
+ALLOWED_HOSTS=backend,localhost,127.0.0.1,funchat-backend,*.localhost,syncroom-eight.vercel.app
 
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000,http://127.0.0.1:3000,http://localhost,http://funchat-nginx
-CSRF_TRUSTED_ORIGINS=http://localhost:3000,http://frontend:3000,http://127.0.0.1:3000,http://localhost,http://funchat-nginx
+# include your deployed frontend origin(s) here (example: Vercel)
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000,http://127.0.0.1:3000,http://localhost,http://funchat-nginx,https://syncroom-eight.vercel.app
+CSRF_TRUSTED_ORIGINS=http://localhost:3000,http://frontend:3000,http://127.0.0.1:3000,http://localhost,http://funchat-nginx,https://syncroom-eight.vercel.app
 
 DB_ENGINE=django.db.backends.postgresql
 DB_NAME=fun_chat_db
