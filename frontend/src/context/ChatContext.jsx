@@ -26,7 +26,10 @@ import {
   markMessagesSeen,
 } from "../services/messeage_service";
 
-import { SOCKET_BASE } from "../utils/constants";
+import {
+  buildChatWebSocketUrl,
+  buildNotificationWebSocketUrl,
+} from "../utils/websocket";
 
 const ChatContext = createContext();
 
@@ -521,8 +524,11 @@ export function ChatProvider({ children }) {
       return;
     }
 
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const url = `${wsProtocol}://${SOCKET_BASE}/ws/notifications/?token=${token}`;
+    const url = buildNotificationWebSocketUrl({ token });
+
+    if (!url) {
+      return;
+    }
 
     socketService.connectNotifications({
       url,
@@ -545,27 +551,39 @@ export function ChatProvider({ children }) {
 
       if (!token || !normalizedRoomName) {
 
+        socketService.disconnect();
+
         setSocketUrl(null);
+
+        setConnectionState(
+          CONNECTION_STATES.DISCONNECTED
+        );
 
         return;
       }
+
+      const url = buildChatWebSocketUrl({
+        roomName: normalizedRoomName,
+        token,
+      });
+
+      if (!url) {
+        return;
+      }
+
+      if (socketUrl === url) {
+        return;
+      }
+
+      socketService.disconnect();
 
       setConnectionState(
         CONNECTION_STATES.CONNECTING
       );
 
-      const wsProtocol =
-        window.location.protocol ===
-        "https:"
-          ? "wss"
-          : "ws";
-
-      const url =
-        `${wsProtocol}://${SOCKET_BASE}/ws/chat/${encodeURIComponent(normalizedRoomName)}/?token=${token}`;
-
       setSocketUrl(url);
     },
-    [token]
+    [socketUrl, token]
   );
 
   const disconnectSocket =
@@ -637,6 +655,8 @@ export function ChatProvider({ children }) {
         await fetchUnreadCountsImmediate();
       }
 
+      disconnectSocket();
+
       clearMessages();
 
       setCurrentRoom(room);
@@ -662,6 +682,7 @@ export function ChatProvider({ children }) {
     },
     [
       clearMessages,
+      disconnectSocket,
       fetchMessages,
       connectSocket,
       currentRoom,
