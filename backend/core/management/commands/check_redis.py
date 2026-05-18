@@ -2,6 +2,7 @@ import redis
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 import logging
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -14,15 +15,33 @@ class Command(BaseCommand):
         
         # Get Redis configuration from settings
         channel_config = settings.CHANNEL_LAYERS['default']['CONFIG']
-        redis_host, redis_port = channel_config['hosts'][0]
+        redis_location = channel_config['hosts'][0]
+
+        parsed = urlparse(redis_location)
+        redis_host = parsed.hostname
+        redis_port = parsed.port or 6379
+        redis_password = parsed.password
+        redis_username = parsed.username
+
+        if not redis_host:
+            raise CommandError(f"Invalid Redis URL in CHANNEL_LAYERS: {redis_location}")
         
         self.stdout.write(f"\n🔍 Testing Redis Connection...")
         self.stdout.write(f"   Host: {redis_host}")
         self.stdout.write(f"   Port: {redis_port}")
+        self.stdout.write(f"   Username: {redis_username or '<none>'}")
+        self.stdout.write(f"   Password: {'<set>' if redis_password else '<none>'}")
         
         try:
             # Test connection to Redis
-            r = redis.Redis(host=redis_host, port=int(redis_port), socket_connect_timeout=5, decode_responses=True)
+            r = redis.Redis(
+                host=redis_host,
+                port=int(redis_port),
+                username=redis_username,
+                password=redis_password,
+                socket_connect_timeout=5,
+                decode_responses=True,
+            )
             response = r.ping()
             
             if response:
@@ -41,6 +60,12 @@ class Command(BaseCommand):
                 
         except redis.ConnectionError as e:
             error_msg = f"❌ Cannot connect to Redis at {redis_host}:{redis_port}\n   Error: {str(e)}"
+            self.stdout.write(self.style.ERROR(error_msg))
+            logger.error(error_msg)
+            raise CommandError(error_msg)
+
+        except redis.AuthenticationError as e:
+            error_msg = f"❌ Redis authentication failed at {redis_host}:{redis_port}\n   Error: {str(e)}"
             self.stdout.write(self.style.ERROR(error_msg))
             logger.error(error_msg)
             raise CommandError(error_msg)

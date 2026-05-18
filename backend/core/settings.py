@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import timedelta
 import os
 import logging
+from urllib.parse import quote, urlparse, urlunparse
 from dotenv import load_dotenv
 import dj_database_url
 
@@ -188,23 +189,96 @@ LOGGING = {
     },
 }
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND":
-            "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts":
-                [os.getenv("REDIS_URL")],
-        },
-    },
-}
+def _build_redis_url_from_parts():
+    host = os.getenv("REDIS_HOST", "").strip()
 
-# Log Redis configuration on startup
-redis_url = os.getenv("REDIS_URL")
-if redis_url:
-    logger.info(f"Redis Channel Layer configured: {redis_url}")
+    if not host:
+        return ""
+
+    scheme = os.getenv("REDIS_SCHEME", "redis").strip() or "redis"
+    port = (os.getenv("REDIS_PORT", "6379") or "6379").strip()
+    db = (os.getenv("REDIS_DB", "0") or "0").strip()
+    username = (os.getenv("REDIS_USERNAME", "") or "").strip()
+    password = (os.getenv("REDIS_PASSWORD", "") or "").strip()
+
+    auth = ""
+    if password and username:
+        auth = f"{quote(username, safe='')}:{quote(password, safe='')}@"
+    elif password:
+        auth = f":{quote(password, safe='')}@"
+    elif username:
+        auth = f"{quote(username, safe='')}@"
+
+    return f"{scheme}://{auth}{host}:{port}/{db}"
+
+
+def _normalize_redis_url(url):
+    value = (url or "").strip()
+
+    if not value:
+        return ""
+
+    parsed = urlparse(value)
+
+    # Some managed Redis deployments reject ACL username `default`
+    # and expect password-only AUTH. Make this behavior configurable.
+    keep_username = os.getenv("REDIS_USE_USERNAME", "false").lower() == "true"
+
+    if (
+        parsed.scheme in {"redis", "rediss"}
+        and parsed.username
+        and not keep_username
+    ):
+        password = parsed.password or ""
+        host = parsed.hostname or ""
+        port = f":{parsed.port}" if parsed.port else ""
+        auth = f":{quote(password, safe='')}@" if password else ""
+        rebuilt = parsed._replace(netloc=f"{auth}{host}{port}")
+        logger.info("Redis URL normalized to password-only auth (REDIS_USE_USERNAME=false)")
+        return urlunparse(rebuilt)
+
+    return value
+
+
+def _mask_redis_url(url):
+    value = (url or "").strip()
+
+    if not value:
+        return "<empty>"
+
+    parsed = urlparse(value)
+    host = parsed.hostname or "unknown-host"
+    port = parsed.port
+    scheme = parsed.scheme or "redis"
+    db = parsed.path or "/0"
+    port_part = f":{port}" if port else ""
+
+    if parsed.password:
+        return f"{scheme}://***:***@{host}{port_part}{db}"
+
+    return f"{scheme}://{host}{port_part}{db}"
+
+
+raw_redis_url = os.getenv("REDIS_URL", "").strip() or _build_redis_url_from_parts()
+REDIS_CONNECTION_URL = _normalize_redis_url(raw_redis_url)
+
+if REDIS_CONNECTION_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_CONNECTION_URL],
+            },
+        },
+    }
+    logger.info("Redis Channel Layer configured: %s", _mask_redis_url(REDIS_CONNECTION_URL))
 else:
-    logger.warning("Redis URL not found in environment variables")
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        },
+    }
+    logger.warning("Redis URL not found; using InMemoryChannelLayer")
 
 # Add Redis caching for online users and other ephemeral data
 CACHES = {
@@ -213,7 +287,7 @@ CACHES = {
             "django_redis.cache.RedisCache",
 
         "LOCATION":
-            os.getenv("REDIS_URL"),
+            REDIS_CONNECTION_URL,
 
         "OPTIONS": {
             "CLIENT_CLASS":
@@ -226,7 +300,10 @@ CACHES = {
 }
 
 # Log cache configuration
-logger.info(f"Redis Cache configured: {CACHES['default']['LOCATION']}")
+if CACHES['default']['LOCATION']:
+    logger.info("Redis Cache configured: %s", _mask_redis_url(CACHES['default']['LOCATION']))
+else:
+    logger.warning("Redis Cache location is empty; cache operations may fail")
 
 REST_FRAMEWORK = {
 
