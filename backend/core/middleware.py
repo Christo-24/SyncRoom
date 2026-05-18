@@ -68,6 +68,10 @@ class JWTAuthMiddleware:
         send,
     ):
 
+        path = scope.get('path', '')
+        headers = dict(scope.get('headers', []))
+        origin = headers.get(b'origin', b'').decode(errors='ignore')
+
         try:
 
             query_string = (
@@ -103,10 +107,34 @@ class JWTAuthMiddleware:
             )
         )
 
+        if not token_list:
+            token_list = (
+                query_params.get(
+                    'access',
+                    []
+                )
+            )
+
+        if not token_list:
+            token_list = (
+                query_params.get(
+                    'access_token',
+                    []
+                )
+            )
+
         token = (
             token_list[0].strip()
             if token_list
             else ''
+        )
+
+        logger.info(
+            "WS auth start: path=%s origin=%s token_present=%s token_len=%s",
+            path,
+            origin,
+            bool(token),
+            len(token),
         )
 
         if (
@@ -134,26 +162,46 @@ class JWTAuthMiddleware:
                         )
                     )
 
+                    logger.info(
+                        "WS auth success: path=%s user_id=%s authenticated=%s",
+                        path,
+                        user_id,
+                        getattr(scope['user'], 'is_authenticated', False),
+                    )
+
                 else:
 
                     scope['user'] = (
                         ANONYMOUS_USER
                     )
 
+                    logger.warning(
+                        "WS auth failed (no user_id claim): path=%s",
+                        path,
+                    )
+
             except (
                 TokenError,
                 InvalidToken,
                 AuthenticationFailed,
-            ):
+            ) as auth_err:
 
                 scope['user'] = (
                     ANONYMOUS_USER
                 )
 
+                logger.warning(
+                    "WS auth token invalid: path=%s error=%s",
+                    path,
+                    str(auth_err),
+                )
+
             except Exception as e:
 
                 logger.error(
-                    f'JWT middleware error: {str(e)}'
+                    'JWT middleware error: path=%s error=%s',
+                    path,
+                    str(e),
                 )
 
                 scope['user'] = (
@@ -164,6 +212,11 @@ class JWTAuthMiddleware:
 
             scope['user'] = (
                 ANONYMOUS_USER
+            )
+
+            logger.warning(
+                "WS auth missing/invalid token value: path=%s",
+                path,
             )
 
         return await self.inner(

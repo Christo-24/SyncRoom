@@ -18,7 +18,7 @@ class MessageService:
 
         with transaction.atomic():
 
-            room = Room.objects.get(name=room_name)
+            room = Room.objects.get(name__iexact=room_name)
 
             was_participant = room.participants.filter(
                 id=user.id

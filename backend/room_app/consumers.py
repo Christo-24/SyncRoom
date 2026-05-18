@@ -70,8 +70,13 @@ class UserNotificationConsumer(AsyncWebsocketConsumer):
         try:
 
             self.user = self.scope['user']
+            path = self.scope.get('path', '')
 
             if not is_valid_user(self.user):
+                logger.warning(
+                    "Notification WS reject unauthenticated: path=%s",
+                    path,
+                )
                 await self.close(code=4401)
                 return
 

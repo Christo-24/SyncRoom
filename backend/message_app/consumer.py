@@ -18,12 +18,33 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
 
         self.user = self.scope["user"]
+        path = self.scope.get("path", "")
 
         if not self.user.is_authenticated:
+            logger.warning(
+                "Chat WS reject unauthenticated: path=%s",
+                path,
+            )
             await self.close(code=4001)
             return
 
-        self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
+        requested_room_name = self.scope["url_route"]["kwargs"]["room_name"]
+
+        canonical_room_name = await sync_to_async(
+            RoomService.get_canonical_room_name
+        )(requested_room_name)
+
+        if not canonical_room_name:
+            logger.warning(
+                "Chat WS reject room not found: requested_room=%s path=%s user=%s",
+                requested_room_name,
+                path,
+                self.user.username,
+            )
+            await self.close(code=4004)
+            return
+
+        self.room_name = canonical_room_name
 
         room_exists = await sync_to_async(
             RoomService.room_exists
@@ -41,6 +62,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
         if not has_access:
+            logger.warning(
+                "Chat WS reject access denied: room=%s path=%s user=%s",
+                self.room_name,
+                path,
+                self.user.username,
+            )
             await self.close(code=4003)
             return
 

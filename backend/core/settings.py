@@ -21,11 +21,48 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security settings with environment variables
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-me-in-production')
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.vercel.app,syncroom-eight.vercel.app').split(',')
 
-# CORS settings for frontend (includes deployed frontend on Vercel)
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,https://syncroom-eight.vercel.app').split(',')
-CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:5173,https://syncroom-eight.vercel.app').split(',')
+
+def _split_csv_env(value):
+    if not value:
+        return []
+    return [item.strip() for item in value.split(',') if item and item.strip()]
+
+
+# Keep these production-safe fallbacks even when env vars are provided,
+# so websocket origin validation works on common deploy hosts.
+default_allowed_hosts = [
+    'localhost',
+    '127.0.0.1',
+    '.vercel.app',
+    '.onrender.com',
+    'syncroom-eight.vercel.app',
+    'syncroom-btqy.onrender.com',
+]
+
+env_allowed_hosts = _split_csv_env(os.getenv('ALLOWED_HOSTS'))
+ALLOWED_HOSTS = list(dict.fromkeys(env_allowed_hosts + default_allowed_hosts))
+
+# CORS settings for frontend (includes deployed frontend hosts)
+default_cors_origins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://syncroom-eight.vercel.app',
+    'https://syncroom-btqy.onrender.com',
+]
+
+env_cors_origins = _split_csv_env(os.getenv('CORS_ALLOWED_ORIGINS'))
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(env_cors_origins + default_cors_origins))
+
+default_csrf_origins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://syncroom-eight.vercel.app',
+    'https://syncroom-btqy.onrender.com',
+]
+
+env_csrf_origins = _split_csv_env(os.getenv('CSRF_TRUSTED_ORIGINS'))
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(env_csrf_origins + default_csrf_origins))
 
 
 # Application definition
