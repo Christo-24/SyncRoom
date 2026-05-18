@@ -259,19 +259,39 @@ def _mask_redis_url(url):
     return f"{scheme}://{host}{port_part}{db}"
 
 
-raw_redis_url = os.getenv("REDIS_URL", "").strip() or _build_redis_url_from_parts()
+def _build_redis_channel_config(redis_url):
+    parsed = urlparse(redis_url)
+
+    if parsed.scheme == "rediss":
+        return {
+            "address": redis_url,
+            "ssl_cert_reqs": None,
+        }
+
+    return redis_url
+
+
+raw_redis_url = (
+    os.getenv("REDIS_TLS_URL", "").strip()
+    or os.getenv("REDIS_URL", "").strip()
+    or _build_redis_url_from_parts()
+)
 REDIS_CONNECTION_URL = _normalize_redis_url(raw_redis_url)
+REDIS_CHANNEL_CONFIG = _build_redis_channel_config(REDIS_CONNECTION_URL)
 
 if REDIS_CONNECTION_URL:
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [REDIS_CONNECTION_URL],
+                "hosts": [REDIS_CHANNEL_CONFIG],
             },
         },
     }
-    logger.info("Redis Channel Layer configured: %s", _mask_redis_url(REDIS_CONNECTION_URL))
+    logger.info(
+        "Redis Channel Layer configured: %s",
+        _mask_redis_url(REDIS_CONNECTION_URL),
+    )
 else:
     CHANNEL_LAYERS = {
         "default": {
