@@ -6,4 +6,4 @@ export const SOCKET_BASE = (
 export const MESSAGE_PAGE_SIZE = 30;
 
 export const SOCKET_RECONNECT_DELAY =
-  3000;
+  Number(import.meta.env.VITE_WS_RECONNECT_DELAY || 5000);

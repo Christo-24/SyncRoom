@@ -1,3 +1,5 @@
+import { SOCKET_RECONNECT_DELAY } from "../utils/constants";
+
 class SocketService {
   constructor() {
     this.socket = null;
@@ -27,7 +29,7 @@ class SocketService {
   }
 
   getReconnectDelay(attempts) {
-    return Math.min(30000, 1000 * (2 ** attempts));
+    return Math.min(60000, SOCKET_RECONNECT_DELAY * (2 ** attempts));
   }
 
   shouldRetry(code) {

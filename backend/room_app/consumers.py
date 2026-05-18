@@ -18,6 +18,8 @@ class RoomGroupConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
 
+        self.room_group_name = None
+
         try:
 
             self.user = self.scope['user']
@@ -47,10 +49,11 @@ class RoomGroupConsumer(AsyncWebsocketConsumer):
 
         try:
 
-            await self.channel_layer.group_discard(
-                self.room_group_name,
-                self.channel_name
-            )
+            if self.room_group_name:
+                await self.channel_layer.group_discard(
+                    self.room_group_name,
+                    self.channel_name
+                )
 
         except Exception as e:
             logger.error(f"RoomGroup disconnect error: {e}")
@@ -66,6 +69,8 @@ class RoomGroupConsumer(AsyncWebsocketConsumer):
 class UserNotificationConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
+
+        self.user_group_name = None
 
         try:
 
@@ -154,10 +159,11 @@ class UserNotificationConsumer(AsyncWebsocketConsumer):
 
         try:
 
-            await self.channel_layer.group_discard(
-                self.user_group_name,
-                self.channel_name
-            )
+            if self.user_group_name:
+                await self.channel_layer.group_discard(
+                    self.user_group_name,
+                    self.channel_name
+                )
 
             # PRESENCE: remove this connection; only mark offline when no remaining conns
             try:

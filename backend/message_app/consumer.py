@@ -17,7 +17,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
 
+        self.room_group_name = None
+        self.room_name = None
         self.user = self.scope["user"]
+
         path = self.scope.get("path", "")
 
         if not self.user.is_authenticated:
@@ -131,49 +134,53 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         try:
 
-            await self.channel_layer.group_discard(
-                self.room_group_name,
-                self.channel_name
-            )
+            if self.room_group_name:
+                await self.channel_layer.group_discard(
+                    self.room_group_name,
+                    self.channel_name
+                )
 
-            await self.channel_layer.group_discard(
-                f"user_{self.user.id}",
-                self.channel_name
-            )
+            if getattr(self, "user", None) and self.user.is_authenticated:
+                await self.channel_layer.group_discard(
+                    f"user_{self.user.id}",
+                    self.channel_name
+                )
 
-            room_online_key = (
-                f"online_users_room_{self.room_name}"
-            )
+            if self.room_name and getattr(self, "user", None) and self.user.is_authenticated:
+                room_online_key = (
+                    f"online_users_room_{self.room_name}"
+                )
 
-            await sync_to_async(
-                PresenceService.remove_online_user
-            )(
-                room_online_key,
-                self.user.username
-            )
+                await sync_to_async(
+                    PresenceService.remove_online_user
+                )(
+                    room_online_key,
+                    self.user.username
+                )
 
-            online_users = await sync_to_async(
-                PresenceService.get_online_users
-            )(
-                room_online_key
-            )
+                if self.room_group_name:
+                    online_users = await sync_to_async(
+                        PresenceService.get_online_users
+                    )(
+                        room_online_key
+                    )
 
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    "type": "online_users_update",
-                    "online_users": online_users
-                }
-            )
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        {
+                            "type": "online_users_update",
+                            "online_users": online_users
+                        }
+                    )
 
-            global_online_key = "global_online_users"
+                global_online_key = "global_online_users"
 
-            await sync_to_async(
-                PresenceService.remove_online_user
-            )(
-                global_online_key,
-                self.user.username
-            )
+                await sync_to_async(
+                    PresenceService.remove_online_user
+                )(
+                    global_online_key,
+                    self.user.username
+                )
 
         except Exception as e:
             logger.error(f"Disconnect error: {e}")
